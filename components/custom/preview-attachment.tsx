@@ -1,5 +1,5 @@
 import { Attachment } from "ai";
-
+import { VideoIcon } from "lucide-react";
 import { LoaderIcon } from "./icons";
 
 export const PreviewAttachment = ({
@@ -24,6 +24,16 @@ export const PreviewAttachment = ({
               alt={name ?? "An image attachment"}
               className="rounded-md size-full object-cover"
             />
+          ) : contentType.startsWith("video") ? (
+            <div className="flex items-center justify-center size-full">
+              <video
+                src={url}
+                className="rounded-md size-full object-cover"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md">
+                <VideoIcon className="text-white w-6 h-6" />
+              </div>
+            </div>
           ) : (
             <div className=""></div>
           )

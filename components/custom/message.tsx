@@ -2,8 +2,9 @@
 
 import { Attachment, ToolInvocation } from "ai";
 import { motion } from "framer-motion";
-import { ReactNode } from "react";
-
+import { ReactNode, useState } from "react";
+import { VideoEditorModes } from "./video-editor-modes";
+import { FullVideoEditor } from "./video-editor/full-editor";
 import { BotIcon, UserIcon } from "./icons";
 import { Markdown } from "./markdown";
 import { PreviewAttachment } from "./preview-attachment";
@@ -29,6 +30,94 @@ export const Message = ({
   toolInvocations: Array<ToolInvocation> | undefined;
   attachments?: Array<Attachment>;
 }) => {
+  const [selectedMode, setSelectedMode] = useState<"in-place" | "full-editor" | null>(null);
+  const [showModeSelection, setShowModeSelection] = useState(false);
+  
+  // Group attachments by type
+  const mediaAttachments = attachments?.reduce((acc, att) => {
+    const type = att.contentType?.split('/')[0] || 'other';
+    return {
+      ...acc,
+      [type]: [...(acc[type] || []), att]
+    };
+  }, {} as Record<string, Attachment[]>) || {};
+
+  const hasVideo = mediaAttachments.video?.length > 0;
+  const hasImages = mediaAttachments.image?.length > 0;
+  const hasAudio = mediaAttachments.audio?.length > 0;
+
+  const handleModeSelect = (mode: "in-place" | "full-editor") => {
+    setSelectedMode(mode);
+    setShowModeSelection(false);
+  };
+
+  const renderMediaPreview = () => {
+    if (!attachments?.length) return null;
+
+    return (
+      <div className="w-full rounded-lg overflow-hidden bg-muted/50 p-4">
+        {/* Video Preview */}
+        {hasVideo && (
+          <div className="mb-4">
+            {mediaAttachments.video.map((video) => (
+              <video
+                key={video.url}
+                src={video.url}
+                controls
+                className="w-full rounded-lg mb-2"
+                style={{ maxHeight: '300px' }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Image Grid */}
+        {hasImages && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+            {mediaAttachments.image.map((image) => (
+              <div key={image.url} className="aspect-square rounded-lg overflow-hidden">
+                <img
+                  src={image.url}
+                  alt={image.name || "Uploaded image"}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Audio Files */}
+        {hasAudio && (
+          <div className="space-y-2 mb-4">
+            {mediaAttachments.audio.map((audio) => (
+              <audio
+                key={audio.url}
+                src={audio.url}
+                controls
+                className="w-full"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Edit Button */}
+        {(hasVideo || hasImages || hasAudio) && !showModeSelection && !selectedMode && (
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              onClick={() => setShowModeSelection(true)}
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+            >
+              {hasVideo ? "Edit Video" : "Create Video"}
+            </button>
+            <p className="text-sm text-muted-foreground text-center">
+              {!hasVideo && "Create a video from your uploaded media"}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <motion.div
       className={`flex flex-row gap-4 px-4 w-full md:w-[500px] md:px-0 first-of-type:pt-20`}
@@ -46,6 +135,27 @@ export const Message = ({
           </div>
         )}
 
+        {renderMediaPreview()}
+
+        {(hasVideo || hasImages || hasAudio) && showModeSelection && (
+          <VideoEditorModes
+            videoFile={mediaAttachments.video?.[0] || null}
+            imageFiles={mediaAttachments.image || []}
+            audioFiles={mediaAttachments.audio || []}
+            onModeSelect={handleModeSelect}
+            onCancel={() => setShowModeSelection(false)}
+          />
+        )}
+
+        {selectedMode === "full-editor" && (
+          <FullVideoEditor
+            videoFile={mediaAttachments.video?.[0] || null}
+            imageFiles={mediaAttachments.image || []}
+            audioFiles={mediaAttachments.audio || []}
+            onClose={() => setSelectedMode(null)}
+          />
+        )}
+
         {toolInvocations && (
           <div className="flex flex-col gap-4">
             {toolInvocations.map((toolInvocation) => {
@@ -53,62 +163,14 @@ export const Message = ({
 
               if (state === "result") {
                 const { result } = toolInvocation;
-
                 return (
                   <div key={toolCallId}>
-                    {toolName === "getWeather" ? (
-                      <Weather weatherAtLocation={result} />
-                    ) : toolName === "displayFlightStatus" ? (
-                      <FlightStatus flightStatus={result} />
-                    ) : toolName === "searchFlights" ? (
-                      <ListFlights chatId={chatId} results={result} />
-                    ) : toolName === "selectSeats" ? (
-                      <SelectSeats chatId={chatId} availability={result} />
-                    ) : toolName === "createReservation" ? (
-                      Object.keys(result).includes("error") ? null : (
-                        <CreateReservation reservation={result} />
-                      )
-                    ) : toolName === "authorizePayment" ? (
-                      <AuthorizePayment intent={result} />
-                    ) : toolName === "displayBoardingPass" ? (
-                      <DisplayBoardingPass boardingPass={result} />
-                    ) : toolName === "verifyPayment" ? (
-                      <VerifyPayment result={result} />
-                    ) : (
-                      <div>{JSON.stringify(result, null, 2)}</div>
-                    )}
-                  </div>
-                );
-              } else {
-                return (
-                  <div key={toolCallId} className="skeleton">
-                    {toolName === "getWeather" ? (
-                      <Weather />
-                    ) : toolName === "displayFlightStatus" ? (
-                      <FlightStatus />
-                    ) : toolName === "searchFlights" ? (
-                      <ListFlights chatId={chatId} />
-                    ) : toolName === "selectSeats" ? (
-                      <SelectSeats chatId={chatId} />
-                    ) : toolName === "createReservation" ? (
-                      <CreateReservation />
-                    ) : toolName === "authorizePayment" ? (
-                      <AuthorizePayment />
-                    ) : toolName === "displayBoardingPass" ? (
-                      <DisplayBoardingPass />
-                    ) : null}
+                    <div>{JSON.stringify(result, null, 2)}</div>
                   </div>
                 );
               }
+              return null;
             })}
-          </div>
-        )}
-
-        {attachments && (
-          <div className="flex flex-row gap-2">
-            {attachments.map((attachment) => (
-              <PreviewAttachment key={attachment.url} attachment={attachment} />
-            ))}
           </div>
         )}
       </div>
