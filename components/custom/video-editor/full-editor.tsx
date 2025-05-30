@@ -1,16 +1,26 @@
 import { Attachment } from "ai";
 import { motion } from "framer-motion";
-import { Button } from "../../ui/button";
-import { Textarea } from "../../ui/textarea";
 import { useState } from "react";
 
+import { Button } from "../../ui/button";
+import { Textarea } from "../../ui/textarea";
+
 interface FullVideoEditorProps {
-  videoFile: Attachment;
+  videoFile: Attachment | null;
+  imageFiles?: Attachment[];
+  audioFiles?: Attachment[];
+  initialPrompt?: string;
   onClose: () => void;
 }
 
-export function FullVideoEditor({ videoFile, onClose }: FullVideoEditorProps) {
-  const [prompt, setPrompt] = useState("");
+export function FullVideoEditor({ 
+  videoFile, 
+  imageFiles = [], 
+  audioFiles = [], 
+  initialPrompt = "",
+  onClose 
+}: FullVideoEditorProps) {
+  const [prompt, setPrompt] = useState(initialPrompt);
 
   return (
     <motion.div
@@ -20,7 +30,12 @@ export function FullVideoEditor({ videoFile, onClose }: FullVideoEditorProps) {
     >
       {/* Header */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 p-4 flex justify-between items-center">
-        <h2 className="text-lg font-medium">Video Editor</h2>
+        <div>
+          <h2 className="text-lg font-medium">Video Editor</h2>
+          <p className="text-sm text-muted-foreground">
+            {initialPrompt || "Edit your video"}
+          </p>
+        </div>
         <Button variant="outline" onClick={onClose}>Close</Button>
       </div>
 
@@ -29,17 +44,19 @@ export function FullVideoEditor({ videoFile, onClose }: FullVideoEditorProps) {
         {/* Preview Section */}
         <div className="md:w-2/3 p-4 flex flex-col gap-4">
           <div className="bg-muted rounded-lg aspect-video overflow-hidden">
-            <video
-              src={videoFile.url}
-              controls
-              className="w-full h-full object-contain"
-            />
+            {videoFile && (
+              <video
+                src={videoFile.url}
+                controls
+                className="size-full object-contain"
+              />
+            )}
           </div>
           
           {/* Prompt Input */}
           <div className="flex gap-2">
             <Textarea
-              placeholder="Enter a prompt to edit the video..."
+              placeholder="Enter additional instructions to edit the video..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               className="flex-1"

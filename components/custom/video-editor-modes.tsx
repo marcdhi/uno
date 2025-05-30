@@ -4,16 +4,16 @@ import { Button } from "../ui/button";
 
 interface VideoEditorModesProps {
   videoFile: Attachment | null;
-  imageFiles: Attachment[];
-  audioFiles: Attachment[];
+  imageFiles?: Attachment[];
+  audioFiles?: Attachment[];
   onModeSelect: (mode: "in-place" | "full-editor") => void;
   onCancel: () => void;
 }
 
 export function VideoEditorModes({ 
   videoFile, 
-  imageFiles, 
-  audioFiles, 
+  imageFiles = [], 
+  audioFiles = [], 
   onModeSelect, 
   onCancel 
 }: VideoEditorModesProps) {

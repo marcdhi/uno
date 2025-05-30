@@ -87,6 +87,16 @@
         @apply bg-background text-foreground;
     }
 
+    /* Hide scrollbars */
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    * {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
     @font-face {
         font-family: "geist";
         font-style: normal;

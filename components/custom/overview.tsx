@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 
-import { LogoGoogle, MessageIcon, VercelIcon } from "./icons";
+import { GlamIcon } from "./icons";
 
 export const Overview = () => {
   return (
@@ -14,21 +14,19 @@ export const Overview = () => {
       transition={{ delay: 0.5 }}
     >
       <div className="border-none bg-muted/50 rounded-2xl p-6 flex flex-col gap-4 text-zinc-500 text-sm dark:text-zinc-400 dark:border-zinc-700">
-        <p className="flex flex-row justify-center gap-4 items-center text-zinc-900 dark:text-zinc-50">
-          <LogoGoogle />
-          <span>+</span>
-          <MessageIcon />
+        <div className="flex flex-row justify-center items-center text-zinc-900 dark:text-zinc-50">
+          <GlamIcon />
+        </div>
+        <p>
+          Welcome to Glam - where <span className="text-primary font-medium">video editing becomes effortless</span>. Transform your videos 
+          with <span className="text-primary font-medium">simple text commands</span>. No complex software, no steep learning curve - just 
+          tell us what you want, and watch the magic happen.
         </p>
         <p>
-          Welcome to Glam - your AI-powered video editing studio. Powered by Google&apos;s 
-          Gemini 1.5 models, Glam helps you edit and enhance videos with natural language 
-          commands. Simply describe what you want to change, and let our AI handle the 
-          technical details.
-        </p>
-        <p>
-          Edit your videos easily with text commands. Cut scenes, remove backgrounds,
-          fix colors, and more - no complex software needed. Perfect for creators,
-          marketers, or anyone looking to make great videos without the hassle.
+          Whether you&apos;re creating content for social media, making marketing videos, or 
+          preserving precious memories, Glam makes it simple. <span className="text-primary font-medium">Cut scenes, remove backgrounds, 
+          enhance colors</span>, and more - all with natural language commands that feel like 
+          chatting with a friend.
         </p>
       </div>
     </motion.div>

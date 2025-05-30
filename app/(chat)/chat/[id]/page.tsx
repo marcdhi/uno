@@ -1,35 +1,40 @@
-import { CoreMessage } from "ai";
-import { notFound } from "next/navigation";
+import { Message } from "ai";
+import { redirect } from "next/navigation";
 
 import { auth } from "@/app/(auth)/auth";
-import { Chat as PreviewChat } from "@/components/custom/chat";
+import { Chat } from "@/components/custom/chat";
 import { getChatById } from "@/db/queries";
-import { Chat } from "@/db/schema";
-import { convertToUIMessages } from "@/lib/utils";
 
-export default async function Page({ params }: { params: any }) {
-  const { id } = params;
-  const chatFromDb = await getChatById({ id });
+interface MessageWithAttachments extends Message {
+  attachments?: Array<{
+    name: string;
+    url: string;
+    contentType?: string;
+  }>;
+}
 
-  if (!chatFromDb) {
-    notFound();
-  }
-
-  // type casting and converting messages to UI messages
-  const chat: Chat = {
-    ...chatFromDb,
-    messages: convertToUIMessages(chatFromDb.messages as Array<CoreMessage>),
-  };
-
+export default async function ChatPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const session = await auth();
 
-  if (!session || !session.user) {
-    return notFound();
+  if (!session) {
+    redirect("/sign-in");
   }
 
-  if (session.user.id !== chat.userId) {
-    return notFound();
+  const chat = await getChatById({ id: params.id });
+
+  if (!chat) {
+    redirect("/");
   }
 
-  return <PreviewChat id={chat.id} initialMessages={chat.messages} />;
+  const messages = chat.messages as MessageWithAttachments[];
+
+  return (
+    <div className="flex-1 flex flex-col items-center">
+      <Chat id={params.id} initialMessages={messages} />
+    </div>
+  );
 }

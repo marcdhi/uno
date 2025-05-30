@@ -2,40 +2,10 @@
   "extends": [
     "next/core-web-vitals",
     "plugin:import/recommended",
-    "plugin:import/typescript",
-    "prettier",
-    "plugin:tailwindcss/recommended"
+    "plugin:import/typescript"
   ],
-  "plugins": ["import", "tailwindcss"],
   "rules": {
-    "tailwindcss/no-custom-classname": "off",
-    "tailwindcss/classnames-order": "off",
-    "import/order": [
-      "error",
-      {
-        "groups": [
-          "builtin",
-          "external",
-          "internal",
-          ["parent", "sibling"],
-          "index",
-          "object",
-          "type"
-        ],
-        "newlines-between": "always",
-        "alphabetize": {
-          "order": "asc",
-          "caseInsensitive": true
-        }
-      }
-    ]
-  },
-  "settings": {
-    "import/resolver": {
-      "typescript": {
-        "alwaysTryTypes": true
-      }
-    }
-  },
-  "ignorePatterns": ["**/components/ui/**"]
+    "import/order": "off",
+    "@next/next/no-img-element": "warn"
+  }
 }

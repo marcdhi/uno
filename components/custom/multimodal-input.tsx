@@ -1,7 +1,7 @@
 "use client";
 
 import { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import React, {
   useRef,
   useEffect,
@@ -13,26 +13,24 @@ import React, {
 } from "react";
 import { toast } from "sonner";
 
-import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons";
-import { PreviewAttachment } from "./preview-attachment";
-import useWindowSize from "./use-window-size";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import { VideoEditorModes } from "./video-editor-modes";
-import { FullVideoEditor } from "./video-editor/full-editor";
+import { Toggle } from "../ui/toggle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 
-const suggestedActions = [
-  {
-    title: "Edit my video",
-    label: "Upload and enhance your video with AI",
-    action: "I want to edit and enhance my video with AI",
-  },
-  {
-    title: "Video effects",
-    label: "Apply stunning effects to your video",
-    action: "Show me what video effects are available",
-  },
-];
+import { ArrowUpIcon, PaperclipIcon, StopIcon, VideoIcon } from "./icons";
+import { ImageIcon } from "./icons";
+import { AudioIcon } from "./icons";
+import { PreviewAttachment } from "./preview-attachment";
+import useWindowSize from "./use-window-size";
+import { FullVideoEditor } from "./video-editor/full-editor";
+import { LoadingState } from "./loading-state";
 
 export function MultimodalInput({
   input,
@@ -65,94 +63,70 @@ export function MultimodalInput({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      adjustHeight();
-    }
-  }, []);
-
-  const adjustHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight + 0}px`;
-    }
-  };
-
-  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(event.target.value);
-    adjustHeight();
-  };
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
-  const [isVideoMode, setIsVideoMode] = useState(false);
-  const [videoFile, setVideoFile] = useState<Attachment | null>(null);
-  const [showModeSelection, setShowModeSelection] = useState(false);
+  const [mediaFile, setMediaFile] = useState<Attachment | null>(null);
   const [selectedMode, setSelectedMode] = useState<"in-place" | "full-editor" | null>(null);
-
-  const submitForm = useCallback(() => {
-    handleSubmit(undefined, {
-      experimental_attachments: attachments,
-    });
-
-    setAttachments([]);
-    
-    if (width && width > 768) {
-      textareaRef.current?.focus();
-    }
-  }, [attachments, handleSubmit, setAttachments, width]);
-
-  const uploadFile = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch(`/api/files/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const { url, pathname, contentType } = data;
-
-        const attachment = {
-          url,
-          name: pathname,
-          contentType: contentType,
-        };
-
-        // If it's a video file, set it as the active video
-        if (contentType.startsWith('video/')) {
-          setIsVideoMode(true);
-          setVideoFile(attachment);
-          setAttachments([attachment]);
-        }
-
-        return attachment;
-      } else {
-        const { error } = await response.json();
-        toast.error(error);
-      }
-    } catch (error) {
-      toast.error("Failed to upload file, please try again!");
-    }
-  };
+  const [isFullEditor, setIsFullEditor] = useState(false);
+  const [mediaType, setMediaType] = useState<"video" | "image" | "audio" | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
       
-      // Filter for video files
-      const videoFiles = files.filter(file => file.type.startsWith('video/'));
-      
-      if (videoFiles.length === 0) {
-        toast.error("Please upload video files only!");
+      if (files.length === 0) {
         return;
       }
 
       setUploadQueue(files.map((file) => file.name));
+      setIsUploading(true);
+
+      const uploadFile = async (file: File) => {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch(`/api/files/upload`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const { url, pathname, contentType } = data;
+
+            const attachment = {
+              url,
+              name: pathname,
+              contentType: contentType,
+            };
+
+            // Set media type based on content type
+            if (contentType.startsWith('video/')) {
+              setMediaType('video');
+            } else if (contentType.startsWith('image/')) {
+              setMediaType('image');
+            } else if (contentType.startsWith('audio/')) {
+              setMediaType('audio');
+            }
+
+            setMediaFile(attachment);
+            setAttachments([attachment]);
+            toast.success(`${mediaType || 'File'} uploaded successfully!`);
+
+            return attachment;
+          } else {
+            const { error } = await response.json();
+            toast.error(error);
+          }
+        } catch (error) {
+          toast.error("Failed to upload file, please try again!");
+        } finally {
+          setUploadQueue([]);
+          setIsUploading(false);
+        }
+      };
 
       try {
         const uploadPromises = files.map((file) => uploadFile(file));
@@ -167,8 +141,7 @@ export function MultimodalInput({
         ]);
       } catch (error) {
         console.error("Error uploading files!", error);
-      } finally {
-        setUploadQueue([]);
+        setIsUploading(false);
       }
     },
     [setAttachments],
@@ -176,205 +149,237 @@ export function MultimodalInput({
 
   const handleModeSelect = (mode: "in-place" | "full-editor") => {
     setSelectedMode(mode);
-    setShowModeSelection(false);
     
     if (mode === "in-place") {
-      append({
-        role: "user",
-        content: "I want to make some quick edits to my video using prompts. What can I do?",
-      });
+      const newMessage = {
+        role: "user" as const,
+        content: input,
+        attachments: [mediaFile!],
+      };
+      append(newMessage);
     }
+
+    setInput("");
+  };
+
+  const renderMediaPreview = () => {
+    if (!mediaFile) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full rounded-lg overflow-hidden bg-muted/50 p-4"
+      >
+        {mediaType === 'video' && (
+          <>
+            <Tabs 
+              defaultValue="quick-edit"
+              value={isFullEditor ? "full-editor" : "quick-edit"}
+              onValueChange={(value: string) => setIsFullEditor(value === "full-editor")}
+              className="mb-4"
+            >
+              <TabsList className="w-full grid grid-cols-2 bg-muted/50 p-1">
+                <TabsTrigger 
+                  value="quick-edit"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  Quick Edit
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="full-editor"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  Full Editor
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </>
+        )}
+        {mediaType === 'video' && (
+          <video
+            src={mediaFile.url}
+            controls
+            className="w-full rounded-lg"
+            style={{ maxHeight: '300px' }}
+          />
+        )}
+        {mediaType === 'image' && (
+          <img
+            src={mediaFile.url}
+            alt={mediaFile.name}
+            className="w-full rounded-lg object-contain"
+            style={{ maxHeight: '300px' }}
+          />
+        )}
+        {mediaType === 'audio' && (
+          <audio
+            src={mediaFile.url}
+            controls
+            className="w-full mt-2"
+          />
+        )}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-zinc-500">
+            {mediaFile.name}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setMediaFile(null);
+                setMediaType(null);
+                setAttachments([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!input.trim()) {
+                  toast.error("Please provide instructions!");
+                  return;
+                }
+                handleModeSelect(isFullEditor ? "full-editor" : "in-place");
+              }}
+              disabled={!input.trim()}
+              className="bg-primary text-white hover:bg-primary/90"
+            >
+              {mediaType === 'video' && isFullEditor ? "Open Editor" : "Apply Changes"}
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    );
   };
 
   return (
     <div className="relative w-full flex flex-col gap-4">
-      {messages.length === 0 &&
-        attachments.length === 0 &&
-        uploadQueue.length === 0 && (
-          <div className="grid sm:grid-cols-2 gap-4 w-full md:px-0 mx-auto md:max-w-[500px]">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="sm:col-span-2"
-            >
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="border-none bg-muted/50 w-full text-left border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-300 rounded-lg p-3 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex flex-col"
-              >
-                <span className="font-medium">Upload Video</span>
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  Start by uploading a video file to edit
-                </span>
-              </button>
-            </motion.div>
-            {suggestedActions.map((suggestedAction, index) => (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                transition={{ delay: 0.05 * index }}
-                key={index}
-                className={index > 1 ? "hidden sm:block" : "block"}
-              >
-                <button
-                  onClick={async () => {
-                    append({
-                      role: "user",
-                      content: suggestedAction.action,
-                    });
-                  }}
-                  className="border-none bg-muted/50 w-full text-left border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-300 rounded-lg p-3 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex flex-col"
-                >
-                  <span className="font-medium">{suggestedAction.title}</span>
-                  <span className="text-zinc-500 dark:text-zinc-400">
-                    {suggestedAction.label}
-                  </span>
-                </button>
-              </motion.div>
-            ))}
-          </div>
+      {/* Loading State */}
+      <AnimatePresence mode="wait">
+        {isUploading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm"
+          >
+            <LoadingState />
+          </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Media Preview */}
+      {renderMediaPreview()}
+
+      {/* Input Area */}
+      <div className="relative w-full">
+        <Textarea
+          ref={textareaRef}
+          tabIndex={0}
+          placeholder="Tell Glam what you'd like to create..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (!isLoading) handleSubmit();
+            }
+          }}
+          rows={1}
+          spellCheck={false}
+          className="resize-none pr-32 py-3 scrollbar-thumb-blue scrollbar-thumb-rounded scrollbar-track-blue-lighter scrollbar-w-2 scrolling-touch"
+        />
+        <div className="absolute right-2 bottom-2 flex items-center gap-2">
+          {!isLoading ? (
+            <>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.accept = "video/*";
+                    fileInputRef.current.click();
+                  }
+                }}
+              >
+                <VideoIcon className="size-5" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.accept = "image/*";
+                    fileInputRef.current.click();
+                  }
+                }}
+              >
+                <ImageIcon className="size-5" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.accept = "audio/*";
+                    fileInputRef.current.click();
+                  }
+                }}
+              >
+                <AudioIcon className="size-5" />
+              </Button>
+              <Button
+                type="submit"
+                size="icon"
+                className="shrink-0"
+                onClick={() => handleSubmit()}
+                disabled={!input.trim()}
+              >
+                <ArrowUpIcon className="size-5" />
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              size="icon"
+              variant="destructive"
+              className="shrink-0"
+              onClick={() => stop()}
+            >
+              <StopIcon className="size-5" />
+            </Button>
+          )}
+        </div>
+      </div>
 
       <input
         type="file"
         className="fixed -top-4 -left-4 size-0.5 opacity-0 pointer-events-none"
         ref={fileInputRef}
-        accept="video/*"
         multiple={false}
         onChange={handleFileChange}
         tabIndex={-1}
       />
 
-      {isVideoMode && videoFile && !showModeSelection && !selectedMode && (
-        <div className="w-full rounded-lg overflow-hidden bg-muted/50 p-4">
-          <video
-            src={videoFile.url}
-            controls
-            className="w-full rounded-lg"
-            style={{ maxHeight: '300px' }}
-          />
-          <div className="mt-4 flex justify-between items-center">
-            <div className="text-sm text-zinc-500">
-              {videoFile.name}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsVideoMode(false);
-                  setVideoFile(null);
-                  setAttachments([]);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setShowModeSelection(true);
-                }}
-              >
-                Edit Video
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isVideoMode && videoFile && showModeSelection && (
-        <VideoEditorModes
-          videoFile={videoFile}
-          onModeSelect={handleModeSelect}
-          onCancel={() => {
-            setShowModeSelection(false);
-          }}
-        />
-      )}
-
-      {isVideoMode && videoFile && selectedMode === "full-editor" && (
+      {/* Full Editor */}
+      {selectedMode === "full-editor" && mediaType === 'video' && (
         <FullVideoEditor
-          videoFile={videoFile}
+          videoFile={mediaFile}
+          initialPrompt={input}
           onClose={() => {
             setSelectedMode(null);
           }}
         />
       )}
-
-      {(attachments.length > 0 || uploadQueue.length > 0) && !isVideoMode && (
-        <div className="flex flex-row gap-2 overflow-x-scroll">
-          {attachments.map((attachment) => (
-            <PreviewAttachment key={attachment.url} attachment={attachment} />
-          ))}
-
-          {uploadQueue.map((filename) => (
-            <PreviewAttachment
-              key={filename}
-              attachment={{
-                url: "",
-                name: filename,
-                contentType: "",
-              }}
-              isUploading={true}
-            />
-          ))}
-        </div>
-      )}
-
-      <Textarea
-        ref={textareaRef}
-        placeholder="Send a message..."
-        value={input}
-        onChange={handleInput}
-        className="min-h-[24px] overflow-hidden resize-none rounded-lg text-base bg-muted border-none"
-        rows={3}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-
-            if (isLoading) {
-              toast.error("Please wait for the model to finish its response!");
-            } else {
-              submitForm();
-            }
-          }
-        }}
-      />
-
-      {isLoading ? (
-        <Button
-          className="rounded-full p-1.5 h-fit absolute bottom-2 right-2 m-0.5 text-white"
-          onClick={(event) => {
-            event.preventDefault();
-            stop();
-          }}
-        >
-          <StopIcon size={14} />
-        </Button>
-      ) : (
-        <Button
-          className="rounded-full p-1.5 h-fit absolute bottom-2 right-2 m-0.5 text-white"
-          onClick={(event) => {
-            event.preventDefault();
-            submitForm();
-          }}
-          disabled={input.length === 0 || uploadQueue.length > 0}
-        >
-          <ArrowUpIcon size={14} />
-        </Button>
-      )}
-
-      <Button
-        className="rounded-full p-1.5 h-fit absolute bottom-2 right-10 m-0.5 dark:border-zinc-700"
-        onClick={(event) => {
-          event.preventDefault();
-          fileInputRef.current?.click();
-        }}
-        variant="outline"
-        disabled={isLoading}
-      >
-        <PaperclipIcon size={14} />
-      </Button>
     </div>
   );
 }

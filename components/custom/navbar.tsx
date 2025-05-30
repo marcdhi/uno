@@ -1,10 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { auth, signOut } from "@/app/(auth)/auth";
 
 import { History } from "./history";
-import { SlashIcon } from "./icons";
+import { GlamIcon, SlashIcon } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "../ui/button";
 import {
@@ -23,15 +22,7 @@ export const Navbar = async () => {
         <div className="flex flex-row gap-3 items-center">
           <History user={session?.user} />
           <div className="flex flex-row gap-2 items-center">
-            <Image
-              src="/images/gemini-logo.png"
-              height={20}
-              width={20}
-              alt="gemini logo"
-            />
-            <div className="text-zinc-500">
-              <SlashIcon size={16} />
-            </div>
+            <GlamIcon />
             <div className="text-sm dark:text-zinc-300 truncate w-28 md:w-fit">
               Glam
             </div>

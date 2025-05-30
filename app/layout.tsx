@@ -8,7 +8,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://glam.vercel.ai"),
-  title: "Glam",
+  title: "Glam", 
   description: "Glam is a platform for creating and sharing videos.",
 };
 

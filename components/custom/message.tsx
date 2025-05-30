@@ -2,13 +2,9 @@
 
 import { Attachment, ToolInvocation } from "ai";
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { ReactNode, useState } from "react";
-import { VideoEditorModes } from "./video-editor-modes";
-import { FullVideoEditor } from "./video-editor/full-editor";
-import { BotIcon, UserIcon } from "./icons";
-import { Markdown } from "./markdown";
-import { PreviewAttachment } from "./preview-attachment";
-import { Weather } from "./weather";
+
 import { AuthorizePayment } from "../flights/authorize-payment";
 import { DisplayBoardingPass } from "../flights/boarding-pass";
 import { CreateReservation } from "../flights/create-reservation";
@@ -16,6 +12,22 @@ import { FlightStatus } from "../flights/flight-status";
 import { ListFlights } from "../flights/list-flights";
 import { SelectSeats } from "../flights/select-seats";
 import { VerifyPayment } from "../flights/verify-payment";
+import { Button } from "../ui/button";
+import { Textarea } from "../ui/textarea";
+import { Toggle } from "../ui/toggle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+
+import { BotIcon, UserIcon } from "./icons";
+import { Markdown } from "./markdown";
+import { PreviewAttachment } from "./preview-attachment";
+import { FullVideoEditor } from "./video-editor/full-editor";
+import { VideoEditorModes } from "./video-editor-modes";
+import { Weather } from "./weather";
 
 export const Message = ({
   chatId,
@@ -32,10 +44,13 @@ export const Message = ({
 }) => {
   const [selectedMode, setSelectedMode] = useState<"in-place" | "full-editor" | null>(null);
   const [showModeSelection, setShowModeSelection] = useState(false);
+  const [editPrompt, setEditPrompt] = useState("");
+  const [isFullEditor, setIsFullEditor] = useState(false);
   
   // Group attachments by type
   const mediaAttachments = attachments?.reduce((acc, att) => {
-    const type = att.contentType?.split('/')[0] || 'other';
+    if (!att.contentType) return acc;
+    const type = att.contentType.split('/')[0];
     return {
       ...acc,
       [type]: [...(acc[type] || []), att]
@@ -46,9 +61,11 @@ export const Message = ({
   const hasImages = mediaAttachments.image?.length > 0;
   const hasAudio = mediaAttachments.audio?.length > 0;
 
-  const handleModeSelect = (mode: "in-place" | "full-editor") => {
-    setSelectedMode(mode);
-    setShowModeSelection(false);
+  const handleModeSelect = () => {
+    if (!editPrompt.trim()) {
+      return; // Don't proceed if prompt is empty
+    }
+    setSelectedMode(isFullEditor ? "full-editor" : "in-place");
   };
 
   const renderMediaPreview = () => {
@@ -75,11 +92,12 @@ export const Message = ({
         {hasImages && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
             {mediaAttachments.image.map((image) => (
-              <div key={image.url} className="aspect-square rounded-lg overflow-hidden">
-                <img
+              <div key={image.url} className="relative aspect-square overflow-hidden rounded-md">
+                <Image
                   src={image.url}
-                  alt={image.name || "Uploaded image"}
-                  className="w-full h-full object-cover"
+                  alt={image.name ?? "An image attachment"}
+                  fill
+                  className="object-cover"
                 />
               </div>
             ))}
@@ -100,18 +118,49 @@ export const Message = ({
           </div>
         )}
 
-        {/* Edit Button */}
-        {(hasVideo || hasImages || hasAudio) && !showModeSelection && !selectedMode && (
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              onClick={() => setShowModeSelection(true)}
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-            >
-              {hasVideo ? "Edit Video" : "Create Video"}
-            </button>
-            <p className="text-sm text-muted-foreground text-center">
-              {!hasVideo && "Create a video from your uploaded media"}
-            </p>
+        {/* Edit Controls */}
+        {(hasVideo || hasImages || hasAudio) && !selectedMode && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Toggle
+                        pressed={isFullEditor}
+                        onPressedChange={setIsFullEditor}
+                        className="data-[state=on]:bg-primary"
+                      >
+                        {isFullEditor ? "Full Editor" : "Quick Edit"}
+                      </Toggle>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Toggle between quick AI-powered edits and full editor mode</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Textarea
+                placeholder={isFullEditor 
+                  ? "Describe what you want to create (e.g., 'Create a dynamic montage with smooth transitions')"
+                  : "Describe your edits (e.g., 'Add subtitles and enhance the colors')"}
+                value={editPrompt}
+                onChange={(e) => setEditPrompt(e.target.value)}
+                className="min-h-[80px] resize-none"
+              />
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleModeSelect}
+                  disabled={!editPrompt.trim()}
+                  className="bg-primary text-white hover:bg-primary/90"
+                >
+                  {isFullEditor ? "Open Editor" : "Apply Edits"}
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -137,21 +186,12 @@ export const Message = ({
 
         {renderMediaPreview()}
 
-        {(hasVideo || hasImages || hasAudio) && showModeSelection && (
-          <VideoEditorModes
-            videoFile={mediaAttachments.video?.[0] || null}
-            imageFiles={mediaAttachments.image || []}
-            audioFiles={mediaAttachments.audio || []}
-            onModeSelect={handleModeSelect}
-            onCancel={() => setShowModeSelection(false)}
-          />
-        )}
-
         {selectedMode === "full-editor" && (
           <FullVideoEditor
             videoFile={mediaAttachments.video?.[0] || null}
             imageFiles={mediaAttachments.image || []}
             audioFiles={mediaAttachments.audio || []}
+            initialPrompt={editPrompt}
             onClose={() => setSelectedMode(null)}
           />
         )}
@@ -160,7 +200,6 @@ export const Message = ({
           <div className="flex flex-col gap-4">
             {toolInvocations.map((toolInvocation) => {
               const { toolName, toolCallId, state } = toolInvocation;
-
               if (state === "result") {
                 const { result } = toolInvocation;
                 return (
