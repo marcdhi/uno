@@ -94,26 +94,36 @@ export function MultimodalInput({
 
           if (response.ok) {
             const data = await response.json();
-            const { url, pathname, contentType } = data;
+            const { url, name, contentType } = data;
 
             const attachment = {
               url,
-              name: pathname,
+              name: name,
               contentType: contentType,
             };
 
+            console.log("Upload successful, attachment:", attachment);
+
             // Set media type based on content type
+            let detectedMediaType: "video" | "image" | "audio" | null = null;
             if (contentType.startsWith('video/')) {
-              setMediaType('video');
+              detectedMediaType = 'video';
             } else if (contentType.startsWith('image/')) {
-              setMediaType('image');
+              detectedMediaType = 'image';
             } else if (contentType.startsWith('audio/')) {
-              setMediaType('audio');
+              detectedMediaType = 'audio';
             }
 
+            setMediaType(detectedMediaType);
             setMediaFile(attachment);
             setAttachments([attachment]);
-            toast.success(`${mediaType || 'File'} uploaded successfully!`);
+            
+            console.log("State after upload:");
+            console.log("- detectedMediaType:", detectedMediaType);
+            console.log("- attachment being set as mediaFile:", attachment);
+            console.log("- attachments array:", [attachment]);
+            
+            toast.success(`${detectedMediaType || 'File'} uploaded successfully!`);
 
             return attachment;
           } else {
@@ -151,12 +161,29 @@ export function MultimodalInput({
     setSelectedMode(mode);
     
     if (mode === "in-place") {
+      console.log("=== Creating message with attachment ===");
+      console.log("Input content:", input);
+      console.log("MediaFile state:", mediaFile);
+      console.log("Attachments state:", attachments);
+      
       const newMessage = {
         role: "user" as const,
         content: input,
-        attachments: [mediaFile!],
       };
-      append(newMessage);
+      
+      console.log("Message being sent:", JSON.stringify(newMessage, null, 2));
+      console.log("Attachments in options:", [mediaFile!]);
+      
+      // Pass attachments in the options parameter, not in the message
+      append(newMessage, {
+        experimental_attachments: [mediaFile!]
+      });
+      
+      // Reset state after sending message
+      setMediaFile(null);
+      setMediaType(null);
+      setAttachments([]);
+      setSelectedMode(null);
     }
 
     setInput("");
@@ -285,7 +312,18 @@ export function MultimodalInput({
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (!isLoading) handleSubmit();
+              if (!isLoading) {
+                // If there's a media file, use the attachment flow
+                if (mediaFile) {
+                  if (!input.trim()) {
+                    toast.error("Please provide instructions!");
+                    return;
+                  }
+                  handleModeSelect(isFullEditor ? "full-editor" : "in-place");
+                } else {
+                  handleSubmit();
+                }
+              }
             }
           }}
           rows={1}
@@ -341,7 +379,18 @@ export function MultimodalInput({
                 type="submit"
                 size="icon"
                 className="shrink-0"
-                onClick={() => handleSubmit()}
+                onClick={() => {
+                  // If there's a media file, use the attachment flow
+                  if (mediaFile) {
+                    if (!input.trim()) {
+                      toast.error("Please provide instructions!");
+                      return;
+                    }
+                    handleModeSelect(isFullEditor ? "full-editor" : "in-place");
+                  } else {
+                    handleSubmit();
+                  }
+                }}
                 disabled={!input.trim()}
               >
                 <ArrowUpIcon className="size-5" />

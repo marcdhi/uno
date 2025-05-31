@@ -28,6 +28,8 @@ import { PreviewAttachment } from "./preview-attachment";
 import { FullVideoEditor } from "./video-editor/full-editor";
 import { VideoEditorModes } from "./video-editor-modes";
 import { Weather } from "./weather";
+import { VideoResult } from "./video-result";
+import { LoaderIcon } from "./icons";
 
 export const Message = ({
   chatId,
@@ -198,18 +200,157 @@ export const Message = ({
 
         {toolInvocations && (
           <div className="flex flex-col gap-4">
-            {toolInvocations.map((toolInvocation) => {
-              const { toolName, toolCallId, state } = toolInvocation;
-              if (state === "result") {
-                const { result } = toolInvocation;
-                return (
-                  <div key={toolCallId}>
-                    <div>{JSON.stringify(result, null, 2)}</div>
-                  </div>
-                );
-              }
-              return null;
-            })}
+            {(() => {
+              // Check if we have video editing tools
+              const videoEditingTools = [
+                'trimVideo', 'adjustSpeed', 'adjustBrightness', 'addText', 
+                'cropVideo', 'rotateVideo', 'adjustVolume', 'applyFilter',
+                'getVideoFromAttachments'
+              ];
+              
+              // Find all video editing results
+              const videoResults = toolInvocations
+                .filter(inv => videoEditingTools.some(tool => 
+                  inv.toolName.includes(tool) || inv.toolName === tool
+                ));
+              
+              // Check if we have any pending video operations
+              const pendingVideoOps = videoResults.filter(inv => inv.state === "call");
+              const completedVideoOps = videoResults.filter(inv => inv.state === "result");
+              
+              // Show only the final video result (last successful one)
+              const finalVideoResult = completedVideoOps
+                .map(inv => ({ ...inv, result: inv.result as any }))
+                .filter(inv => inv.result && typeof inv.result === 'object')
+                .reverse()
+                .find(inv => inv.result.success && (inv.result.videoUrl || inv.result.editedVideoUrl));
+              
+              const otherResults = toolInvocations
+                .filter(inv => inv.state === "result")
+                .filter(inv => !videoEditingTools.some(tool => 
+                  inv.toolName.includes(tool) || inv.toolName === tool
+                ));
+              
+              return (
+                <>
+                  {/* Show video processing indicator */}
+                  {pendingVideoOps.length > 0 && (
+                    <div className="rounded-lg bg-muted/50 p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="animate-spin text-zinc-500">
+                          <LoaderIcon />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-zinc-800 dark:text-zinc-300">
+                            Processing video...
+                          </p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                            {completedVideoOps.length}/{videoResults.length} operations complete
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Show final video result only when all operations are complete */}
+                  {pendingVideoOps.length === 0 && finalVideoResult && (
+                    <VideoResult
+                      key={finalVideoResult.toolCallId}
+                      result={finalVideoResult.result}
+                    />
+                  )}
+                  
+                  {/* Show other non-video tool results */}
+                  {otherResults.map((toolInvocation) => {
+                    const { toolName, toolCallId, result } = toolInvocation;
+                    
+                    if (toolName === "createReservation") {
+                      return (
+                        <CreateReservation
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+
+                    if (toolName === "listFlights") {
+                      return (
+                        <ListFlights
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+
+                    if (toolName === "selectSeats") {
+                      return (
+                        <SelectSeats
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+
+                    if (toolName === "authorizePayment") {
+                      return (
+                        <AuthorizePayment
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+
+                    if (toolName === "verifyPayment") {
+                      return (
+                        <VerifyPayment
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+
+                    if (toolName === "displayBoardingPass") {
+                      return (
+                        <DisplayBoardingPass
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+
+                    if (toolName === "flightStatus") {
+                      return (
+                        <FlightStatus
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+
+                    if (toolName === "getWeather") {
+                      return (
+                        <Weather
+                          key={toolCallId}
+                          result={result}
+                        />
+                      );
+                    }
+                    
+                    // Fallback to JSON display for unknown tools
+                    return (
+                      <div key={toolCallId} className="rounded-lg bg-muted/50 p-4">
+                        <div className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                          {toolName}
+                        </div>
+                        <pre className="text-xs overflow-auto text-slate-500">
+                          {JSON.stringify(result, null, 2)}
+                        </pre>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>

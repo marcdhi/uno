@@ -664,3 +664,41 @@ export const GlamIcon = () => {
     </svg>
   );
 };
+
+export const ArrowUpRightSmallIcon = ({ size = 16 }: { size?: number }) => {
+  return (
+    <svg
+      height={size}
+      strokeLinejoin="round"
+      viewBox="0 0 16 16"
+      width={size}
+      style={{ color: "currentcolor" }}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M10.5 2.75C10.5 2.33579 10.8358 2 11.25 2H13.25C13.6642 2 14 2.33579 14 2.75V4.75C14 5.16421 13.6642 5.5 13.25 5.5C12.8358 5.5 12.5 5.16421 12.5 4.75V4.06066L8.53033 8.03033C8.23744 8.32322 7.76256 8.32322 7.46967 8.03033C7.17678 7.73744 7.17678 7.26256 7.46967 6.96967L11.4393 3H10.75C10.3358 3 10 2.66421 10 2.25C10 1.83579 10.3358 1.5 10.75 1.5H10.5V2.75Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+};
+
+export const CheckCircle = ({ size = 16 }: { size?: number }) => {
+  return (
+    <svg
+      height={size}
+      strokeLinejoin="round"
+      viewBox="0 0 16 16"
+      width={size}
+      style={{ color: "currentcolor" }}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M8 0C3.58172 0 0 3.58172 0 8C0 12.4183 3.58172 16 8 16C12.4183 16 16 12.4183 16 8C16 3.58172 12.4183 0 8 0ZM11.7803 6.28033L12.3107 5.75L11.25 4.68934L10.7197 5.21967L6.5 9.43935L5.28033 8.21967L4.75001 7.68934L3.68934 8.74999L4.21967 9.28033L5.96967 11.0303C6.11032 11.171 6.30109 11.25 6.5 11.25C6.69891 11.25 6.88968 11.171 7.03033 11.0303L11.7803 6.28033Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+};
