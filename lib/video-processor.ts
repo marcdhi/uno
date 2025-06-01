@@ -146,12 +146,92 @@ interface VideoProcessorOptions {
   tempDir?: string;
 }
 
+// Add new interfaces for complex operations
+interface EditOperation {
+  type: string;
+  parameters: Record<string, any>;
+  order: number;
+}
+
+interface StylePreset {
+  name: string;
+  description: string;
+  operations: EditOperation[];
+}
+
+interface BatchEditRequest {
+  videoUrl: string;
+  operations: EditOperation[];
+  style?: string;
+}
+
+interface VideoAnalysis {
+  duration: number;
+  resolution: { width: number; height: number };
+  fps: number;
+  hasAudio: boolean;
+  format: string;
+}
+
 class VideoProcessor {
   private tempDir: string;
+  private stylePresets: Map<string, StylePreset> = new Map();
 
   constructor(options: VideoProcessorOptions = {}) {
     this.tempDir = options.tempDir || path.join(process.cwd(), 'tmp');
     this.ensureTempDir();
+    this.initializeStylePresets();
+  }
+
+  private initializeStylePresets() {
+    this.stylePresets = new Map([
+      ['cinematic', {
+        name: 'Cinematic',
+        description: 'Professional movie-like appearance with color grading and smooth transitions',
+        operations: [
+          { type: 'adjustBrightness', parameters: { brightness: 10 }, order: 1 },
+          { type: 'applyFilter', parameters: { filter: 'cinematic', intensity: 0.8 }, order: 2 },
+          { type: 'adjustVolume', parameters: { volume: 1.2 }, order: 3 }
+        ]
+      }],
+      ['vintage', {
+        name: 'Vintage',
+        description: 'Retro look with warm tones and film grain',
+        operations: [
+          { type: 'applyFilter', parameters: { filter: 'sepia', intensity: 0.6 }, order: 1 },
+          { type: 'adjustBrightness', parameters: { brightness: -5 }, order: 2 },
+          { type: 'addFilmGrain', parameters: { intensity: 0.3 }, order: 3 }
+        ]
+      }],
+      ['modern', {
+        name: 'Modern',
+        description: 'Clean, sharp look with enhanced colors',
+        operations: [
+          { type: 'applyFilter', parameters: { filter: 'sharpen', intensity: 0.7 }, order: 1 },
+          { type: 'adjustBrightness', parameters: { brightness: 15 }, order: 2 },
+          { type: 'enhanceColors', parameters: { saturation: 1.2 }, order: 3 }
+        ]
+      }],
+      ['social-media', {
+        name: 'Social Media',
+        description: 'Optimized for social platforms with engaging visuals',
+        operations: [
+          { type: 'cropToAspectRatio', parameters: { ratio: '9:16' }, order: 1 },
+          { type: 'adjustBrightness', parameters: { brightness: 20 }, order: 2 },
+          { type: 'enhanceColors', parameters: { saturation: 1.3 }, order: 3 },
+          { type: 'addText', parameters: { text: 'Swipe up!', position: 'bottom' }, order: 4 }
+        ]
+      }],
+      ['professional', {
+        name: 'Professional',
+        description: 'Corporate and business-ready appearance',
+        operations: [
+          { type: 'stabilizeVideo', parameters: {}, order: 1 },
+          { type: 'adjustBrightness', parameters: { brightness: 5 }, order: 2 },
+          { type: 'normalizeAudio', parameters: {}, order: 3 }
+        ]
+      }]
+    ]);
   }
 
   private ensureTempDir() {
@@ -462,6 +542,373 @@ class VideoProcessor {
     fs.unlinkSync(outputPath);
     
     return resultUrl;
+  }
+
+  // New method: Analyze video properties
+  async analyzeVideo(videoUrl: string): Promise<VideoAnalysis> {
+    const inputPath = await this.downloadVideo(videoUrl);
+    
+    return new Promise((resolve, reject) => {
+      const args = [
+        '-i', inputPath,
+        '-f', 'null',
+        '-'
+      ];
+      
+      this.runFFmpegForAnalysis(args)
+        .then(output => {
+          // Parse FFmpeg output to extract video properties
+          const durationMatch = output.match(/Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})/);
+          const resolutionMatch = output.match(/(\d{3,4})x(\d{3,4})/);
+          const fpsMatch = output.match(/(\d+(?:\.\d+)?) fps/);
+          const audioMatch = output.includes('Audio:');
+          
+          const duration = durationMatch 
+            ? parseInt(durationMatch[1]) * 3600 + parseInt(durationMatch[2]) * 60 + parseFloat(durationMatch[3])
+            : 0;
+          
+          const resolution = resolutionMatch 
+            ? { width: parseInt(resolutionMatch[1]), height: parseInt(resolutionMatch[2]) }
+            : { width: 1920, height: 1080 };
+          
+          const fps = fpsMatch ? parseFloat(fpsMatch[1]) : 30;
+          
+          resolve({
+            duration,
+            resolution,
+            fps,
+            hasAudio: audioMatch,
+            format: 'mp4'
+          });
+        })
+        .catch(reject);
+    });
+  }
+
+  // New method: Batch processing with multiple operations
+  async batchEdit(request: BatchEditRequest): Promise<string> {
+    let currentVideoUrl = request.videoUrl;
+    const operations = [...request.operations].sort((a, b) => a.order - b.order);
+    
+    console.log(`Starting batch edit with ${operations.length} operations`);
+    
+    for (const operation of operations) {
+      try {
+        console.log(`Applying operation: ${operation.type}`, operation.parameters);
+        
+        switch (operation.type) {
+          case 'trimVideo':
+            currentVideoUrl = await this.trimVideo(currentVideoUrl, operation.parameters.startTime, operation.parameters.endTime);
+            break;
+          case 'adjustSpeed':
+            currentVideoUrl = await this.adjustSpeed(currentVideoUrl, operation.parameters.speed);
+            break;
+          case 'adjustBrightness':
+            currentVideoUrl = await this.adjustBrightness(currentVideoUrl, operation.parameters.brightness);
+            break;
+          case 'addText':
+            currentVideoUrl = await this.addText(
+              currentVideoUrl, 
+              operation.parameters.text, 
+              operation.parameters.position,
+              operation.parameters.startTime,
+              operation.parameters.endTime
+            );
+            break;
+          case 'cropVideo':
+            currentVideoUrl = await this.cropVideo(
+              currentVideoUrl,
+              operation.parameters.x,
+              operation.parameters.y,
+              operation.parameters.width,
+              operation.parameters.height
+            );
+            break;
+          case 'rotateVideo':
+            currentVideoUrl = await this.rotateVideo(currentVideoUrl, operation.parameters.degrees);
+            break;
+          case 'adjustVolume':
+            currentVideoUrl = await this.adjustVolume(currentVideoUrl, operation.parameters.volume);
+            break;
+          case 'applyFilter':
+            currentVideoUrl = await this.applyFilter(
+              currentVideoUrl, 
+              operation.parameters.filter, 
+              operation.parameters.intensity
+            );
+            break;
+          case 'cropToAspectRatio':
+            currentVideoUrl = await this.cropToAspectRatio(currentVideoUrl, operation.parameters.ratio);
+            break;
+          case 'enhanceColors':
+            currentVideoUrl = await this.enhanceColors(currentVideoUrl, operation.parameters.saturation);
+            break;
+          case 'stabilizeVideo':
+            currentVideoUrl = await this.stabilizeVideo(currentVideoUrl);
+            break;
+          case 'normalizeAudio':
+            currentVideoUrl = await this.normalizeAudio(currentVideoUrl);
+            break;
+          case 'addFilmGrain':
+            currentVideoUrl = await this.addFilmGrain(currentVideoUrl, operation.parameters.intensity);
+            break;
+          default:
+            console.warn(`Unknown operation type: ${operation.type}`);
+        }
+      } catch (error) {
+        console.error(`Failed to apply operation ${operation.type}:`, error);
+        throw new Error(`Batch edit failed at operation: ${operation.type}`);
+      }
+    }
+    
+    return currentVideoUrl;
+  }
+
+  // New method: Apply style preset
+  async applyStyle(videoUrl: string, styleName: string): Promise<string> {
+    const style = this.stylePresets.get(styleName.toLowerCase());
+    if (!style) {
+      throw new Error(`Style "${styleName}" not found`);
+    }
+    
+    return this.batchEdit({
+      videoUrl,
+      operations: style.operations,
+      style: styleName
+    });
+  }
+
+  // New method: Smart crop to aspect ratio
+  async cropToAspectRatio(videoUrl: string, ratio: string): Promise<string> {
+    const inputPath = await this.downloadVideo(videoUrl);
+    const outputPath = this.generateOutputPath();
+    
+    let cropFilter: string;
+    switch (ratio) {
+      case '16:9':
+        cropFilter = 'crop=ih*16/9:ih';
+        break;
+      case '9:16':
+        cropFilter = 'crop=iw:iw*16/9';
+        break;
+      case '1:1':
+        cropFilter = 'crop=min(iw\\,ih):min(iw\\,ih)';
+        break;
+      case '4:3':
+        cropFilter = 'crop=ih*4/3:ih';
+        break;
+      default:
+        throw new Error(`Unsupported aspect ratio: ${ratio}`);
+    }
+    
+    const args = [
+      '-i', inputPath,
+      '-vf', cropFilter,
+      '-c:a', 'copy',
+      outputPath
+    ];
+    
+    await this.runFFmpeg(args);
+    return this.uploadToVercelBlob(outputPath);
+  }
+
+  // New method: Enhance colors
+  async enhanceColors(videoUrl: string, saturation: number = 1.2): Promise<string> {
+    const inputPath = await this.downloadVideo(videoUrl);
+    const outputPath = this.generateOutputPath();
+    
+    const args = [
+      '-i', inputPath,
+      '-vf', `eq=saturation=${saturation}:contrast=1.1:brightness=0.05`,
+      '-c:a', 'copy',
+      outputPath
+    ];
+    
+    await this.runFFmpeg(args);
+    return this.uploadToVercelBlob(outputPath);
+  }
+
+  // New method: Stabilize video
+  async stabilizeVideo(videoUrl: string): Promise<string> {
+    const inputPath = await this.downloadVideo(videoUrl);
+    const outputPath = this.generateOutputPath();
+    
+    const args = [
+      '-i', inputPath,
+      '-vf', 'deshake=x=-1:y=-1:w=-1:h=-1:rx=16:ry=16',
+      '-c:a', 'copy',
+      outputPath
+    ];
+    
+    await this.runFFmpeg(args);
+    return this.uploadToVercelBlob(outputPath);
+  }
+
+  // New method: Normalize audio
+  async normalizeAudio(videoUrl: string): Promise<string> {
+    const inputPath = await this.downloadVideo(videoUrl);
+    const outputPath = this.generateOutputPath();
+    
+    const args = [
+      '-i', inputPath,
+      '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11',
+      '-c:v', 'copy',
+      outputPath
+    ];
+    
+    await this.runFFmpeg(args);
+    return this.uploadToVercelBlob(outputPath);
+  }
+
+  // New method: Add film grain
+  async addFilmGrain(videoUrl: string, intensity: number = 0.3): Promise<string> {
+    const inputPath = await this.downloadVideo(videoUrl);
+    const outputPath = this.generateOutputPath();
+    
+    const args = [
+      '-i', inputPath,
+      '-vf', `noise=alls=${Math.round(intensity * 20)}:allf=t`,
+      '-c:a', 'copy',
+      outputPath
+    ];
+    
+    await this.runFFmpeg(args);
+    return this.uploadToVercelBlob(outputPath);
+  }
+
+  // New method: Create video montage from multiple clips
+  async createMontage(videoUrls: string[], transitions: string[] = [], music?: string): Promise<string> {
+    if (videoUrls.length < 2) {
+      throw new Error('Montage requires at least 2 video clips');
+    }
+    
+    const inputPaths = await Promise.all(videoUrls.map(url => this.downloadVideo(url)));
+    const outputPath = this.generateOutputPath();
+    
+    // Create a complex filter for montage with transitions
+    let filterComplex = '';
+    let inputs = inputPaths.map((path, i) => ['-i', path]).flat();
+    
+    // Add music input if provided
+    if (music) {
+      const musicPath = await this.downloadVideo(music);
+      inputs.push('-i', musicPath);
+    }
+    
+    // Build filter for concatenation with crossfade transitions
+    for (let i = 0; i < inputPaths.length; i++) {
+      if (i === 0) {
+        filterComplex += `[0:v]`;
+      } else {
+        const transition = transitions[i - 1] || 'fade';
+        filterComplex += `[${i}:v]`;
+      }
+    }
+    
+    filterComplex += `concat=n=${inputPaths.length}:v=1:a=1[outv][outa]`;
+    
+    const args = [
+      ...inputs,
+      '-filter_complex', filterComplex,
+      '-map', '[outv]',
+      '-map', '[outa]',
+      '-c:v', 'libx264',
+      '-c:a', 'aac',
+      outputPath
+    ];
+    
+    await this.runFFmpeg(args);
+    return this.uploadToVercelBlob(outputPath);
+  }
+
+  // New method: Add multiple text overlays with timing
+  async addMultipleTexts(videoUrl: string, textOverlays: Array<{
+    text: string;
+    position: 'top' | 'center' | 'bottom';
+    startTime: number;
+    endTime: number;
+    style?: string;
+  }>): Promise<string> {
+    const inputPath = await this.downloadVideo(videoUrl);
+    const outputPath = this.generateOutputPath();
+    
+    // Build complex filter for multiple text overlays
+    let filterComplex = '[0:v]';
+    
+    textOverlays.forEach((overlay, index) => {
+      const fontsize = overlay.style?.includes('large') ? 48 : 24;
+      const fontcolor = overlay.style?.includes('red') ? 'red' : 'white';
+      
+      let y_position: string;
+      switch (overlay.position) {
+        case 'top':
+          y_position = '50';
+          break;
+        case 'center':
+          y_position = '(h-text_h)/2';
+          break;
+        case 'bottom':
+          y_position = 'h-text_h-50';
+          break;
+        default:
+          y_position = '(h-text_h)/2';
+      }
+      
+      filterComplex += `drawtext=text='${overlay.text}':fontsize=${fontsize}:fontcolor=${fontcolor}:x=(w-text_w)/2:y=${y_position}:enable='between(t,${overlay.startTime},${overlay.endTime})'`;
+      
+      if (index < textOverlays.length - 1) {
+        filterComplex += ',';
+      }
+    });
+    
+    const args = [
+      '-i', inputPath,
+      '-vf', filterComplex,
+      '-c:a', 'copy',
+      outputPath
+    ];
+    
+    await this.runFFmpeg(args);
+    return this.uploadToVercelBlob(outputPath);
+  }
+
+  // Helper method for analysis
+  private async runFFmpegForAnalysis(args: string[]): Promise<string> {
+    const currentFFmpegPath = await ensureFFmpeg();
+    
+    return new Promise((resolve, reject) => {
+      const process = spawn(currentFFmpegPath, args);
+      let output = '';
+      let errorOutput = '';
+      
+      process.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      process.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      process.on('close', (code) => {
+        if (code === 0 || errorOutput.includes('Duration:')) {
+          resolve(errorOutput); // FFmpeg outputs info to stderr
+        } else {
+          reject(new Error(`FFmpeg analysis failed: ${errorOutput}`));
+        }
+      });
+      
+      process.on('error', (error) => {
+        reject(error);
+      });
+    });
+  }
+
+  // Get available styles
+  getAvailableStyles(): Array<{ name: string; description: string }> {
+    return Array.from(this.stylePresets.values()).map(style => ({
+      name: style.name,
+      description: style.description
+    }));
   }
 }
 
